@@ -1,25 +1,84 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './App.css';
 import TaskList from './components/TaskList';
 import TaskForm from './components/TaskForm';
+import LoginForm from './components/LoginForm';
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 function App() {
-  const [tasks, setTasks] = useState([
-    { id: 1, title: 'Set up project repo', dueDate: '2026-10-21' },
-    { id: 2, title: 'Write API documentation', dueDate: '2026-10-25' },
-    { id: 3, title: 'Design database schema', dueDate: '2026-10-30' },
-  ]);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [token, setToken] = useState('');
+  const [user, setUser] = useState(null);
 
-  function addTask(title) {
-    const newTask = { id: Date.now(), title: title, dueDate: 'No due date' };
-    setTasks([...tasks, newTask]);
+  async function loadTasks() {
+    try {
+      const res = await fetch(`${API_URL}/api/tasks`);
+      if (!res.ok) throw new Error('Request failed');
+      setTasks(await res.json());
+      setError('');
+    } catch {
+      setError('Could not load the tasks.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/tasks`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Request failed');
+        return res.json();
+      })
+      .then((data) => setTasks(data))
+      .catch(() => setError('Could not load the tasks.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleLogin(email, password) {
+    const res = await fetch(`${API_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) throw new Error('Invalid email or password');
+    const data = await res.json();
+    setToken(data.token);
+    setUser(data.user);
+  }
+
+  async function addTask(title) {
+    const res = await fetch(`${API_URL}/api/tasks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ title, userId: user.id }),
+    });
+    if (!res.ok) throw new Error('Could not add the task');
+    await loadTasks();
   }
 
   return (
     <div>
       <h1>Task Manager</h1>
-      <TaskForm onAdd={addTask} />
-      <TaskList tasks={tasks} />
+
+      {token ? (
+        <>
+          <p>Logged in as {user.name}</p>
+          <TaskForm onAdd={addTask} />
+        </>
+      ) : (
+        <LoginForm onLogin={handleLogin} />
+      )}
+
+      {loading && <p>Loading...</p>}
+      {error && <p>{error}</p>}
+      {!loading && !error && tasks.length === 0 && <p>No tasks yet.</p>}
+      {!loading && !error && tasks.length > 0 && <TaskList tasks={tasks} />}
     </div>
   );
 }

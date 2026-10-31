@@ -3,7 +3,8 @@ function TaskList({ tasks }) {
     <ul>
       {tasks.map((task) => (
         <li key={task.id}>
-          {task.title} - {task.dueDate}
+          {task.title} - {task.completed ? 'done' : 'pending'}
+          {task.User ? ` (${task.User.name})` : ''}
         </li>
       ))}
     </ul>
